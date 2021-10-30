@@ -1,8 +1,8 @@
-use std::{panic, thread};
-use std::net::{Shutdown, TcpListener, TcpStream, ToSocketAddrs};
-use std::io::{Read, Write};
-use std::str::from_utf8;
+// use std::{panic, thread};
+// use std::net::{Shutdown, TcpListener, TcpStream, ToSocketAddrs};
+use std::io::{/*Read, */Write};
 use argon2::{self, Config};
+use json::{self, JsonValue, object};
 
 
 struct User {
@@ -10,8 +10,6 @@ struct User {
     pseudo: String,
     /// The user's password to authenticate on the chat.
     pwd: String,
-    /// The socket the user is connected on.
-    socket: TcpStream
 }
 
 impl User {
@@ -27,29 +25,16 @@ impl User {
         return &self.pwd;
     }
 
-    /// Function to get the user's socket.
-    /// Returns a TcpStream
-    fn get_socket(&self) -> &TcpStream {
-        return &self.socket;
-    }
-
     /// Function to create a new User.
     /// Returns an instance of User Structure
-    fn create_user(pseudo: String, pwd: String, socket: TcpStream) -> User {
+    fn create_user(pseudo: String, pwd: String) -> User {
         User {
             pseudo,
-            socket,
-            pwd: encode_pwd(pwd)
+            pwd: encode_pwd(pwd),
         }
     }
 
-    /// Function to update the socket of a user.
-    fn update_socket(&mut self, socket: TcpStream) {
-        self.socket = socket;
-    }
-
-    fn serialize(&self) -> String {
-        // return String::from("User: {}, pwd: {}, socket: {}", self.pseudo, self.pwd, self.socket);
+    fn to_string(&self) -> String {
         let mut serie:String = String::from("User: \"");
         serie.push_str(self.pseudo.as_str());
         serie.push_str("\", pwd: \"");
@@ -58,8 +43,16 @@ impl User {
     
         return serie;
     }
-}
 
+    fn to_json(&self) -> String {
+        let user_json:JsonValue = object!{
+            username: self.pseudo.clone(),
+            pwd: self.pwd.clone(),
+        };
+        
+        return json::stringify(user_json);
+    }
+}
 
 fn main() {
     let hash = encode_pwd(String::from("test"));
@@ -67,7 +60,7 @@ fn main() {
     verify_pwd(String::from("ok"), &hash);
 
     println!("Welcome on rust m3ss4g1ng by ESGI");
-    chat_menu();
+    general_menu();
 
 }
 
@@ -76,6 +69,7 @@ fn main() {
 fn read_user_entry() -> String {
     use std::io;
     let mut user_entry = String::new();
+    let _ = io::stdout().flush();
     let _ = io::stdin().read_line(&mut user_entry);
 
     user_entry = user_entry.trim().parse().unwrap();
@@ -90,13 +84,12 @@ fn encode_pwd(pwd:String) -> String{
 }
 
 /// Verify the match between the pwd and the hash.
-/// 
 /// Returns true if match, else false.
 fn verify_pwd(pwd:String, hash:&String) -> bool {
     return argon2::verify_encoded(&hash, pwd.as_bytes()).unwrap();
 }
 
-fn chat_menu() {
+fn general_menu() {
     loop {
         println!("What do you want to do ?");
         println!("1- Connect");
@@ -123,27 +116,57 @@ fn chat_menu() {
             connect();
         } else  if entry == 2{
             register();
-            break;
         }
     }  
 }
 
 fn connect() {
     println!("Connect");
-    println!("Enter username:");
-    let user:String = read_user_entry();
-    println!("Enter password:");
+    print!("Enter username: ");
+    let pseudo:String = read_user_entry();
+    print!("Enter password: ");
     let pwd:String = read_user_entry();
-    let stream = TcpStream::connect("192.168.1.47:13796").expect("Can't connect to server");
     
-    let mut user = User::create_user(user, pwd.clone(), stream);
+    let user = User::create_user(pseudo, pwd.clone());
 
     let hash = user.get_pwd();
 
     println!("{}", verify_pwd(pwd, hash));
-    println!("{}", user.serialize());
+
+    // user_list.push(user);
+    // let json = user.to_json();
+
+
+    println!("{}", user.to_json());
+    println!("{}", user.to_string());
+
+    // TODO: Send json over socket to verify user on server
+    // TODO: Get the return of the server to verify if user exist and the password is good
+
+}
+
+fn verify_pseudo(pseudo: String) -> bool {
+    // TODO: send the pseudo in json and get the return from server
+    // Return true if pseudo is available, else false
+    return true;
 }
 
 fn register() {
     println!("Register");
+
+    print!("Enter username: ");
+    let pseudo:String = read_user_entry();
+    
+    if !verify_pseudo(pseudo.clone()) {
+        println!("Pseudo already used");
+        return;
+    }
+
+    print!("Enter password: ");
+    let pwd:String = read_user_entry();
+
+    let user = User::create_user(pseudo, pwd);
+
+    // TODO: send user json to server to register the user (use user.to_json() -> json)
+
 }
