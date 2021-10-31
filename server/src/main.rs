@@ -1,9 +1,9 @@
-use std::{panic, thread};
+// use std::{panic, thread};
 use std::net::{Shutdown, TcpListener, TcpStream, ToSocketAddrs};
 use std::io::{Read, Write};
-use std::str::from_utf8;
+// use std::str::from_utf8;
 use argon2::{self, Config};
-
+use json::{self, JsonValue, object};
 
 struct User {
     /// The pseudo the user will use inside the chat.
@@ -39,7 +39,7 @@ impl User {
         User {
             pseudo,
             socket,
-            pwd: encode_pwd(pwd)
+            pwd
         }
     }
 
@@ -48,8 +48,8 @@ impl User {
         self.socket = socket;
     }
 
-    fn serialize(&self) -> String {
-        // return String::from("User: {}, pwd: {}, socket: {}", self.pseudo, self.pwd, self.socket);
+    /// Returns a printable string containing user data
+    fn to_string(&self) -> String {
         let mut serie:String = String::from("User: \"");
         serie.push_str(self.pseudo.as_str());
         serie.push_str("\", pwd: \"");
@@ -59,19 +59,32 @@ impl User {
         return serie;
     }
 
-    fn display() {
-        println!("test");
+    /// Returns a json string containing user data
+    fn to_json(&self) -> String {
+        let user_json:JsonValue = object!{
+            username: self.pseudo.clone(),
+            pwd: self.pwd.clone(),
+        };
+        
+        return json::stringify(user_json);
     }
 }
 
 
 fn main() {
+    let users:Vec<User> = Vec::new();
+    let tmp = object! {"username":"toto","pwd":"$argon2i$v=19$m=4096,t=3,p=1$cnVzdF9tZXNzYWdpbmc$a+URuyk304JEitqJVXFafsjJC0bigXQvePC7IWUJ75k"};
+
+
+    // println!("")
+
     let hash = encode_pwd(String::from("test"));
     verify_pwd(String::from("test"), &hash);
     verify_pwd(String::from("ok"), &hash);
 
-    println!("Welcome on rust m3ss4g1ng by ESGI");
-    general_menu();
+    println!("Rust m3ss4g1ng by ESGI starting ...");
+
+    parse_user_json(tmp.to_string());
 
 }
 
@@ -95,66 +108,13 @@ fn encode_pwd(pwd:String) -> String{
 }
 
 /// Verify the match between the pwd and the hash.
-/// 
 /// Returns true if match, else false.
 fn verify_pwd(pwd:String, hash:&String) -> bool {
     return argon2::verify_encoded(&hash, pwd.as_bytes()).unwrap();
 }
 
-fn general_menu() {
-    loop {
-        println!("What do you want to do ?");
-        println!("1- Connect");
-        println!("2- Register");
-        println!("!q- Quit");
-        let entry:String = read_user_entry();
-        
-        if entry == "!q" || entry == "!quit" {
-            println!("Quit");
-            break;
-        }
-
-        if entry.parse::<i8>().is_err() {
-            continue;
-        }
-
-        let entry:i8 = entry.parse().unwrap();
-
-        if entry != 1 && entry != 2 {
-            println!("Not a good option: {}", entry);
-        }
-
-        if entry == 1 {
-            connect();
-        } else  if entry == 2{
-            register();
-            break;
-        }
-    }  
-}
-
-fn connect() {
-    println!("Connect");
-    print!("Enter username: ");
-    let user:String = read_user_entry();
-    print!("Enter password: ");
-    let pwd:String = read_user_entry();
-    let stream = TcpStream::connect("192.168.1.47:13796").expect("Can't connect to server");
-    
-    let mut user = User::create_user(user, pwd.clone(), stream);
-
-    let hash = user.get_pwd();
-
-    println!("{}", verify_pwd(pwd, hash));
-    println!("{}", user.serialize());
-
-
-    let mut user_list:Vec<User> = Vec::new();
-    user_list.push(user);
-
-    // println!("{}", user_list);
-}
-
-fn register() {
-    println!("Register");
+fn parse_user_json(mut user:String) /*-> User */{
+    let user= json::parse(&user);
+    println!("{:?}", user);
+    // return User::create_user(user[""], pwd: String, socket: TcpStream);
 }

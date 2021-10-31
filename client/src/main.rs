@@ -1,6 +1,6 @@
 // use std::{panic, thread};
 // use std::net::{Shutdown, TcpListener, TcpStream, ToSocketAddrs};
-use std::io::{/*Read, */Write};
+use std::{io::{Write, stdout}, process::exit};
 use argon2::{self, Config};
 use json::{self, JsonValue, object};
 
@@ -34,6 +34,7 @@ impl User {
         }
     }
 
+    /// Returns a printable string containing user data
     fn to_string(&self) -> String {
         let mut serie:String = String::from("User: \"");
         serie.push_str(self.pseudo.as_str());
@@ -44,12 +45,13 @@ impl User {
         return serie;
     }
 
+    /// Returns a json string containing user data
     fn to_json(&self) -> String {
         let user_json:JsonValue = object!{
             username: self.pseudo.clone(),
             pwd: self.pwd.clone(),
         };
-        
+
         return json::stringify(user_json);
     }
 }
@@ -103,6 +105,7 @@ fn general_menu() {
         }
 
         if entry.parse::<i8>().is_err() {
+            println!("Not a good option: {}", entry);
             continue;
         }
 
@@ -110,48 +113,54 @@ fn general_menu() {
 
         if entry != 1 && entry != 2 {
             println!("Not a good option: {}", entry);
+            continue;
         }
 
+        let user:User;
+
         if entry == 1 {
-            connect();
-        } else  if entry == 2{
-            register();
+            user = connect();
+        } else  /*if entry == 2*/{
+            user = register();
         }
+
+        chat_menu(user);
     }  
 }
 
-fn connect() {
-    println!("Connect");
+fn connect() -> User {
+    println!("");
+    println!("--------------------");
     print!("Enter username: ");
     let pseudo:String = read_user_entry();
     print!("Enter password: ");
     let pwd:String = read_user_entry();
+    println!("--------------------");
+    println!("");
     
     let user = User::create_user(pseudo, pwd.clone());
 
-    let hash = user.get_pwd();
+    // let hash = user.get_pwd();
+    // println!("{}", verify_pwd(pwd, hash));
+    // println!("{}", user.to_json());
+    // println!("{}", user.to_string());
 
-    println!("{}", verify_pwd(pwd, hash));
-
-    // user_list.push(user);
-    // let json = user.to_json();
-
-
-    println!("{}", user.to_json());
-    println!("{}", user.to_string());
+    //JSON extract field example: (json::parse(user.to_json()as_str())).unwrap
+    // println!("{}", (json::parse(user.to_json().as_str())).unwrap()["username"]);
 
     // TODO: Send json over socket to verify user on server
     // TODO: Get the return of the server to verify if user exist and the password is good
-
+    
+    return user;
 }
 
-fn verify_pseudo(pseudo: String) -> bool {
+fn verify_pseudo(_pseudo: String) -> bool {
     // TODO: send the pseudo in json and get the return from server
     // Return true if pseudo is available, else false
     return true;
 }
 
-fn register() {
+fn register() -> User{
     println!("Register");
 
     print!("Enter username: ");
@@ -159,7 +168,7 @@ fn register() {
     
     if !verify_pseudo(pseudo.clone()) {
         println!("Pseudo already used");
-        return;
+        exit(1);
     }
 
     print!("Enter password: ");
@@ -169,4 +178,51 @@ fn register() {
 
     // TODO: send user json to server to register the user (use user.to_json() -> json)
 
+    return user;
+}
+
+fn chat_menu(user: User) {
+    println!("Welcome {}", user.get_pseudo());
+
+    loop {
+        println!("1- Enter in general chat");
+        println!("!q- Quit");
+
+        let entry = read_user_entry();
+
+        if entry == "!q" || entry == "!quit" {
+            println!("Quit");
+            break;
+        }
+
+        if entry.parse::<i8>().is_err() {
+            println!("Not a good option: {}", entry);
+            continue;
+        }
+
+        let entry:i8 = entry.parse().unwrap();
+
+        if entry != 1 {
+            println!("Not a good option: {}", entry);
+            continue;
+        } else {
+            // println!("Chat !!");
+            // break;
+            chat(String::from("general"));
+        }
+    }
+}
+
+fn chat(chat_type:String) {
+    if chat_type == "general" {
+        println!("");
+        println!("");
+        println!("");
+        println!("--- General chat ---");
+        println!("[PUBLCI] M4ss1m0: Vive l'ESGI");
+        println!("[PUBLIC] D0rus: Vive le BDE de l'ESGI");
+    }
+
+    let out = std::io::stdout.clone();
+    stdout().flush();
 }
