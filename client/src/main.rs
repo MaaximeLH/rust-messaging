@@ -3,6 +3,7 @@
 use std::{io::{Write, stdout}, process::exit};
 use argon2::{self, Config};
 use json::{self, JsonValue, object};
+use regex;
 
 
 struct User {
@@ -10,6 +11,11 @@ struct User {
     pseudo: String,
     /// The user's password to authenticate on the chat.
     pwd: String,
+}
+
+struct Message {
+    from: User,
+    content: String
 }
 
 impl User {
@@ -53,6 +59,19 @@ impl User {
         };
 
         return json::stringify(user_json);
+    }
+}
+
+impl Message {
+    fn new(user: User, content:String) -> Message {
+        Message{
+            from: user,
+            content
+        }
+    }
+
+    fn send() {
+        // TODO: envoyer le message au server
     }
 }
 
@@ -221,8 +240,28 @@ fn chat(chat_type:String) {
         println!("--- General chat ---");
         println!("[PUBLCI] M4ss1m0: Vive l'ESGI");
         println!("[PUBLIC] D0rus: Vive le BDE de l'ESGI");
-    }
 
-    let out = std::io::stdout.clone();
-    stdout().flush();
+        let regex = regex::Regex::new("^![A-z0-9]+( [A-z0-9]*){0,1}$").unwrap();
+        let entry = read_user_entry();
+
+        if regex.is_match(entry.as_str()) {
+            // let command:Option<usize> = entry.find(" ");
+
+            let str_splitted = entry.split(" ");
+            let vec = str_splitted.collect::<Vec<&str>>();
+            let action = vec[0].split("!").collect::<Vec<&str>>()[1];
+            // println!("{}", action);
+
+            match action {
+                "quit" | "q" => println!("You will quit"),
+                "l" | "list" => println!("You will list"),
+                "private" | "!p" => println!("You will talk in private to user"),
+                _ => println!("Another stuff")
+            }
+
+        } else {
+            println!("false");
+        }
+
+    }
 }
