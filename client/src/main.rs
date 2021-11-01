@@ -253,15 +253,17 @@ fn chat(chat_type:String) {
             // println!("{}", action);
 
             match action {
-                "quit" | "q" => println!("You will quit"),
+                "quit" | "q" => {
+                    println!("You will quit");
+                    //TODO: quit the thread
+                },
                 "l" | "list" => println!("You will list"),
-                "private" | "!p" => println!("You will talk in private to user"),
+                "p" | "private" => println!("You will talk in private to user"),
                 _ => println!("Another stuff")
             }
 
         } else {
             println!("false");
         }
-
     }
 }
