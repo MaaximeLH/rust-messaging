@@ -14,7 +14,11 @@ struct User {
 }
 
 struct Message {
+    /// The user who send the message.
     from: User,
+    /// The destination of the message
+    to: String,
+    /// Content of the message sent.
     content: String
 }
 
@@ -32,7 +36,7 @@ impl User {
     }
 
     /// Function to create a new User.
-    /// Returns an instance of User Structure
+    /// Returns an instance of User Structure.
     fn create_user(pseudo: String, pwd: String) -> User {
         User {
             pseudo,
@@ -40,7 +44,7 @@ impl User {
         }
     }
 
-    /// Returns a printable string containing user data
+    /// Returns a printable string containing user data.
     fn to_string(&self) -> String {
         let mut serie:String = String::from("User: \"");
         serie.push_str(self.pseudo.as_str());
@@ -51,7 +55,7 @@ impl User {
         return serie;
     }
 
-    /// Returns a json string containing user data
+    /// Returns a json string containing user data.
     fn to_json(&self) -> String {
         let user_json:JsonValue = object!{
             username: self.pseudo.clone(),
@@ -60,18 +64,32 @@ impl User {
 
         return json::stringify(user_json);
     }
+
+    /// Return a clone of user.
+    fn to_user(&self) -> User {
+        User {
+            pseudo: self.get_pseudo().clone(),
+            pwd: self.get_pwd().clone()
+        }
+    }
 }
 
 impl Message {
-    fn new(user: User, content:String) -> Message {
+    /// Create a new user.
+    fn new(user: User, to:String, content:String) -> Message {
         Message{
             from: user,
+            to,
             content
         }
     }
 
-    fn send() {
+    /// Send the current message to the server.
+    fn send(&self) {
         // TODO: envoyer le message au server
+        println!("Sending message to server");
+        println!("Message sent");
+        println!("From:\"{}\", content:\"{}\"", self.from.get_pseudo(), self.content);
     }
 }
 
@@ -129,18 +147,15 @@ fn general_menu() {
         }
 
         let entry:i8 = entry.parse().unwrap();
-
-        if entry != 1 && entry != 2 {
-            println!("Not a good option: {}", entry);
-            continue;
-        }
-
         let user:User;
 
-        if entry == 1 {
-            user = connect();
-        } else  /*if entry == 2*/{
-            user = register();
+        match entry {
+            1 => user = connect(),
+            2 => user = register(),
+            _ => {
+                println!("Not a good option: {}", entry);
+                break;
+            }
         }
 
         chat_menu(user);
@@ -200,6 +215,14 @@ fn register() -> User{
     return user;
 }
 
+fn get_connected_users() -> String {
+
+    //TODO: get all connected users from server
+
+    let users = String::from("{\"users\":[\"toto\",\"marco\",\"massimo\",\"dorus\"]}");
+    return users;
+}
+
 fn chat_menu(user: User) {
     println!("Welcome {}", user.get_pseudo());
 
@@ -221,18 +244,21 @@ fn chat_menu(user: User) {
 
         let entry:i8 = entry.parse().unwrap();
 
-        if entry != 1 {
-            println!("Not a good option: {}", entry);
-            continue;
-        } else {
-            // println!("Chat !!");
-            // break;
-            chat(String::from("general"));
+        match entry {
+            1 => chat(String::from("general"), &user),
+            _ => println!("Not a good value for: {}", entry)
         }
+
+        // if entry != 1 {
+        //     println!("Not a good option: {}", entry);
+        //     continue;
+        // } else {
+        //     chat(String::from("general"), &user);
+        // }
     }
 }
 
-fn chat(chat_type:String) {
+fn chat(chat_type:String, user:&User) {
     if chat_type == "general" {
         println!("");
         println!("");
@@ -245,25 +271,37 @@ fn chat(chat_type:String) {
         let entry = read_user_entry();
 
         if regex.is_match(entry.as_str()) {
-            // let command:Option<usize> = entry.find(" ");
-
             let str_splitted = entry.split(" ");
             let vec = str_splitted.collect::<Vec<&str>>();
             let action = vec[0].split("!").collect::<Vec<&str>>()[1];
-            // println!("{}", action);
 
             match action {
                 "quit" | "q" => {
                     println!("You will quit");
                     //TODO: quit the thread
                 },
-                "l" | "list" => println!("You will list"),
+                "l" | "list" => {
+                    println!("You will list");
+                    let users = get_connected_users();
+                    let users = json::parse(users.as_str()).unwrap_or(object!{});
+                    println!("{:?}", users);
+                    // println!("{}", users["users"][1]);
+                    for x in users["users"].members() {
+                        println!("{}", x);
+                    }
+                },
+                "h" | "help" => {
+                    println!("Help display");
+
+                },
                 "p" | "private" => println!("You will talk in private to user"),
                 _ => println!("Another stuff")
             }
 
         } else {
-            println!("false");
+            println!("this is a standard message");
+            let message:Message = Message::new(user.to_user(), String::from("general"), entry);
+            message.send();
         }
     }
 }
