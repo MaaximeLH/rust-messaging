@@ -72,10 +72,17 @@ impl User {
             pwd: self.get_pwd().clone()
         }
     }
+
+    fn new(pseudo: String, pwd: String) -> User {
+        User {
+            pseudo,
+            pwd
+        }
+    }
 }
 
 impl Message {
-    /// Create a new user.
+    /// Create a new message.
     fn new(user: User, to:String, content:String) -> Message {
         Message{
             from: user,
@@ -111,21 +118,20 @@ fn read_user_entry() -> String {
     let _ = io::stdout().flush();
     let _ = io::stdin().read_line(&mut user_entry);
 
-    user_entry = user_entry.trim().parse().unwrap();
+    user_entry = user_entry.trim().parse().unwrap_or(String::from(""));
 
     return user_entry;
-
 }
 
 /// Return an encoded string corresponding to the hash of the given one.
 fn encode_pwd(pwd:String) -> String{
-    return argon2::hash_encoded(pwd.as_bytes(), String::from("rust_messaging").as_bytes(), &Config::default()).unwrap();
+    return argon2::hash_encoded(pwd.as_bytes(), String::from("rust_messaging").as_bytes(), &Config::default()).unwrap_or(String::from(""));
 }
 
 /// Verify the match between the pwd and the hash.
 /// Returns true if match, else false.
 fn verify_pwd(pwd:String, hash:&String) -> bool {
-    return argon2::verify_encoded(&hash, pwd.as_bytes()).unwrap();
+    return argon2::verify_encoded(&hash, pwd.as_bytes()).unwrap_or(false);
 }
 
 fn general_menu() {
@@ -146,7 +152,7 @@ fn general_menu() {
             continue;
         }
 
-        let entry:i8 = entry.parse().unwrap();
+        let entry:i8 = entry.parse().unwrap_or(0);
         let user:User;
 
         match entry {
@@ -154,7 +160,7 @@ fn general_menu() {
             2 => user = register(),
             _ => {
                 println!("Not a good option: {}", entry);
-                break;
+                continue;
             }
         }
 
@@ -172,7 +178,7 @@ fn connect() -> User {
     println!("--------------------");
     println!("");
     
-    let user = User::create_user(pseudo, pwd.clone());
+    let user = User::create_user(pseudo, pwd);
 
     // let hash = user.get_pwd();
     // println!("{}", verify_pwd(pwd, hash));
@@ -242,19 +248,12 @@ fn chat_menu(user: User) {
             continue;
         }
 
-        let entry:i8 = entry.parse().unwrap();
+        let entry:i8 = entry.parse().unwrap_or(0);
 
         match entry {
             1 => chat(String::from("general"), &user),
             _ => println!("Not a good value for: {}", entry)
         }
-
-        // if entry != 1 {
-        //     println!("Not a good option: {}", entry);
-        //     continue;
-        // } else {
-        //     chat(String::from("general"), &user);
-        // }
     }
 }
 
@@ -264,7 +263,7 @@ fn chat(chat_type:String, user:&User) {
         println!("");
         println!("");
         println!("--- General chat ---");
-        println!("[PUBLCI] M4ss1m0: Vive l'ESGI");
+        println!("[PUBLIC] M4ss1m0: Vive l'ESGI");
         println!("[PUBLIC] D0rus: Vive le BDE de l'ESGI");
 
         let regex = regex::Regex::new("^![A-z0-9]+( [A-z0-9]*){0,1}$").unwrap();
@@ -276,7 +275,7 @@ fn chat(chat_type:String, user:&User) {
             let action = vec[0].split("!").collect::<Vec<&str>>()[1];
 
             match action {
-                "quit" | "q" => {
+                "q" | "quit" => {
                     println!("You will quit");
                     //TODO: quit the thread
                 },
@@ -285,7 +284,6 @@ fn chat(chat_type:String, user:&User) {
                     let users = get_connected_users();
                     let users = json::parse(users.as_str()).unwrap_or(object!{});
                     println!("{:?}", users);
-                    // println!("{}", users["users"][1]);
                     for x in users["users"].members() {
                         println!("{}", x);
                     }
