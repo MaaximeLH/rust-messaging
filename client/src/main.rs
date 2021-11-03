@@ -11,6 +11,8 @@ struct User {
     pseudo: String,
     /// The user's password to authenticate on the chat.
     pwd: String,
+    /// Token send by the server to keep user connected
+    token: String
 }
 
 struct Message {
@@ -35,12 +37,23 @@ impl User {
         return &self.pwd;
     }
 
+    /// Function to get the user's token.
+    /// Returns a String
+    fn get_token(&self) -> &String {
+        return &self.token;
+    }
+
+    fn set_token(&mut self, new_token: String) {
+        self.token = new_token
+    }
+
     /// Function to create a new User.
     /// Returns an instance of User Structure.
     fn create_user(pseudo: String, pwd: String) -> User {
         User {
             pseudo,
             pwd: encode_pwd(pwd),
+            token: String::new()
         }
     }
 
@@ -50,6 +63,8 @@ impl User {
         serie.push_str(self.pseudo.as_str());
         serie.push_str("\", pwd: \"");
         serie.push_str(self.pwd.as_str());
+        serie.push_str("\", token: \"");
+        serie.push_str(self.token.as_str());
         serie.push_str("\"");
     
         return serie;
@@ -69,14 +84,16 @@ impl User {
     fn to_user(&self) -> User {
         User {
             pseudo: self.get_pseudo().clone(),
-            pwd: self.get_pwd().clone()
+            pwd: self.get_pwd().clone(),
+            token: self.get_token().clone()
         }
     }
 
     fn new(pseudo: String, pwd: String) -> User {
         User {
             pseudo,
-            pwd
+            pwd,
+            token: String::new()
         }
     }
 }
