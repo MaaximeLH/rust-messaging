@@ -156,8 +156,22 @@ fn general_menu() {
         let user:User;
 
         match entry {
-            1 => user = connect(),
-            2 => user = register(),
+            1 => {
+                let tmp = connect();
+                if tmp.0 == true {
+                    user = tmp.1;
+                } else {
+                    continue;
+                }
+            },
+            2 => {
+                let tmp = register();
+                if tmp.0 == true {
+                    user = tmp.1;
+                } else {
+                    continue;
+                }
+            },
             _ => {
                 println!("Not a good option: {}", entry);
                 continue;
@@ -168,7 +182,7 @@ fn general_menu() {
     }  
 }
 
-fn connect() -> User {
+fn connect() -> (bool, User) {
     println!("");
     println!("--------------------");
     print!("Enter username: ");
@@ -191,7 +205,7 @@ fn connect() -> User {
     // TODO: Send json over socket to verify user on server
     // TODO: Get the return of the server to verify if user exist and the password is good
     
-    return user;
+    return (true, user);
 }
 
 fn verify_pseudo(_pseudo: String) -> bool {
@@ -200,7 +214,7 @@ fn verify_pseudo(_pseudo: String) -> bool {
     return true;
 }
 
-fn register() -> User{
+fn register() -> (bool, User) {
     println!("Register");
 
     print!("Enter username: ");
@@ -218,7 +232,7 @@ fn register() -> User{
 
     // TODO: send user json to server to register the user (use user.to_json() -> json)
 
-    return user;
+    return (true, user);
 }
 
 fn get_connected_users() -> String {
