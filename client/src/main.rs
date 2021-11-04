@@ -159,7 +159,11 @@ fn general_menu() {
         println!("!r - register");
         println!("!q- Quit");
         let entry:String = read_user_entry();
+        let entry = entry.as_str();
+
         
+        let user:User;
+
         match entry {
             "!q" | "!quit" => {
                 println!("Quit");
@@ -275,6 +279,7 @@ fn chat_menu(user: User) {
         println!("!q- Quit");
 
         let entry = read_user_entry();
+        let entry = entry.as_str();
 
         match entry {
             "!g" | "!general" => {
