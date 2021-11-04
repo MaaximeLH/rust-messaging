@@ -186,15 +186,7 @@ fn general_menu() {
                 continue;
             }
         }
-
-
-
-
-        if entry == "!q" || entry == "!quit" {
-            println!("Quit");
-            break;
-        }
-
+        
         chat_menu(user);
     }  
 }
