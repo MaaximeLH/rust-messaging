@@ -181,14 +181,28 @@ fn general_menu() {
                     continue;
                 }
             }
+            "!h" | "!help" => {
+                display_help();
+                continue;
+            }
             _ => {
                 println!("Not a good option: {}", entry);
                 continue;
             }
         }
-        
+
         chat_menu(user);
     }  
+}
+
+/// Display help for user.
+fn display_help() {
+    println!("!q or !quit       -> makes you quit the rust messaging program");
+    println!("!h or !help       -> display the help");
+    println!("!c or !connect    -> (only on the menu) launch the connect program");
+    println!("!r or !register   -> (only on the menu) launch the register program");
+    println!("!p or !private    -> (only in chat menu or inside a chat) send private message to a user");
+    println!("!l or !list       -> (only inside a chat) list all connected users ");
 }
 
 fn connect() -> (bool, User) {
@@ -311,10 +325,10 @@ fn chat(chat_type:String, user:&User) {
                         println!("{}", x);
                     }
                 },
-                "h" | "help" => {
-                    println!("Help display");
-
-                },
+                 "!h" | "!help" => {
+                display_help();
+                //continue;
+            }
                 "p" | "private" => println!("You will talk in private to user"),
                 _ => println!("Another stuff")
             }
