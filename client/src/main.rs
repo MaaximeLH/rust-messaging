@@ -155,45 +155,44 @@ fn verify_pwd(pwd:String, hash:&String) -> bool {
 fn general_menu() {
     loop {
         println!("What do you want to do ?");
-        println!("1- Connect");
-        println!("2- Register");
+        println!("!c - connect");
+        println!("!r - register");
         println!("!q- Quit");
         let entry:String = read_user_entry();
         
-        if entry == "!q" || entry == "!quit" {
-            println!("Quit");
-            break;
-        }
-
-        if entry.parse::<i8>().is_err() {
-            println!("Not a good option: {}", entry);
-            continue;
-        }
-
-        let entry:i8 = entry.parse().unwrap_or(0);
-        let user:User;
-
         match entry {
-            1 => {
+            "!q" | "!quit" => {
+                println!("Quit");
+                break;
+            }
+            "!c" | "!connect" => {
                 let tmp = connect();
                 if tmp.0 == true {
                     user = tmp.1;
                 } else {
                     continue;
                 }
-            },
-            2 => {
+            }
+            "!r" | "!register" => {
                 let tmp = register();
                 if tmp.0 == true {
                     user = tmp.1;
                 } else {
                     continue;
                 }
-            },
+            }
             _ => {
                 println!("Not a good option: {}", entry);
                 continue;
             }
+        }
+
+
+
+
+        if entry == "!q" || entry == "!quit" {
+            println!("Quit");
+            break;
         }
 
         chat_menu(user);
