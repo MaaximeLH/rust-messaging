@@ -89,6 +89,7 @@ impl User {
         }
     }
 
+    /// Create a new user.
     fn new(pseudo: String, pwd: String) -> User {
         User {
             pseudo,
