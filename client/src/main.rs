@@ -202,7 +202,8 @@ fn display_help() {
     println!("!c or !connect    -> (only on the menu) launch the connect program");
     println!("!r or !register   -> (only on the menu) launch the register program");
     println!("!p or !private    -> (only in chat menu or inside a chat) send private message to a user");
-    println!("!l or !list       -> (only inside a chat) list all connected users ");
+    println!("!l or !list       -> (only inside a chat) list all connected users");
+    println!("!g or !general    -> (only in chat menu) connect to general chat");
 }
 
 fn connect() -> (bool, User) {
@@ -270,26 +271,23 @@ fn chat_menu(user: User) {
     println!("Welcome {}", user.get_pseudo());
 
     loop {
-        println!("1- Enter in general chat");
+        println!("!g- Enter in general chat");
         println!("!q- Quit");
 
         let entry = read_user_entry();
 
-        if entry == "!q" || entry == "!quit" {
-            println!("Quit");
-            break;
-        }
-
-        if entry.parse::<i8>().is_err() {
-            println!("Not a good option: {}", entry);
-            continue;
-        }
-
-        let entry:i8 = entry.parse().unwrap_or(0);
-
         match entry {
-            1 => chat(String::from("general"), &user),
-            _ => println!("Not a good value for: {}", entry)
+            "!g" | "!general" => {
+                chat(String::from("general"), &user);
+            }
+            "!q" | "!quit" => {
+                println!("Quit");
+                break;
+            }
+            _ => {
+                println!("Not a good option: {}", entry);
+                continue;
+            }
         }
     }
 }
