@@ -1,0 +1,27 @@
+name: CD
+
+on: workflow_dispatch
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+     - uses: actions/checkout@v2
+     - name: Build
+       run: cargo build --verbose
+     - name: Run tests
+       run: cargo test --verbose
+     - name: Create Release
+       run: cargo build --release --bins --target-dir tmp/
+     - name: Publish executable
+       uses: EndBug/add-and-commit@v7
+       with:
+         add : 'exec/release/*'
+         message: 'Creating Rust executable'
+         committer_name: GitHub Actions
+         committer_email: actions@github.com
