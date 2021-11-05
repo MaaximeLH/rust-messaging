@@ -201,8 +201,8 @@ fn general_menu() {
 
 /// Display help for user.
 fn display_help() {
-    println!("!q or !quit       -> makes you quit the rust messaging program");
     println!("!h or !help       -> display the help");
+    println!("!q or !quit       -> makes you quit the rust messaging program");
     println!("!c or !connect    -> (only on the menu) launch the connect program");
     println!("!r or !register   -> (only on the menu) launch the register program");
     println!("!p or !private    -> (only in chat menu or inside a chat) send private message to a user");
