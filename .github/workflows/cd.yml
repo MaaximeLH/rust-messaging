@@ -17,7 +17,7 @@ jobs:
      - name: Run tests
        run: cargo test --verbose
      - name: Create Release
-       run: cargo build --release --bins --target-dir tmp/
+       run: cargo build --release --bins --target-dir exec/
      - name: Publish executable
        uses: EndBug/add-and-commit@v7
        with:
