@@ -142,6 +142,12 @@ fn read_user_entry() -> String {
 }
 
 /// Return an encoded string corresponding to the hash of the given one.
+/// # Example
+/// Get the hash of the string "Hello world !"
+/// ``` rust
+/// let input = String::from("Hello world !");
+/// let hash = encode_pwd(input)
+/// ```
 fn encode_pwd(pwd:String) -> String{
     return argon2::hash_encoded(pwd.as_bytes(), String::from("rust_messaging").as_bytes(), &Config::default()).unwrap_or(String::from(""));
 }
