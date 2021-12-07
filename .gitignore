@@ -1,5 +1,9 @@
 /target
 /target/
+/client/target/
+/client/target
+/server/target/
+/server/target
 .idea
 .vscode
 Cargo.lock
