@@ -1,9 +1,12 @@
-use std::{io::{ErrorKind, Read, Write}, net::{TcpListener, TcpStream}, thread, sync::mpsc};
+use std::{io::{ErrorKind, Read, Write}, net::{TcpListener, TcpStream}, thread, sync::{mpsc, Arc, Mutex}};
 use argon2::{self, Config};
 use json::{self, JsonValue, object};
+use rand::{Rng, thread_rng, distributions::Alphanumeric};
 
 // Définition des paramètres
-const LOCAL: &str = "0.0.0.0:8888";
+const CHAT: &str = "0.0.0.0:8888";
+const CONNECT: &str = "0.0.0.0:8889";
+const REGISTER: &str = "0.0.0.0:8890";
 const MSG_SIZE: usize = 32;
 
 fn sleep() {
@@ -75,15 +78,26 @@ impl User {
     }
 }
 
+impl Clone for User {
+    fn clone(&self) -> User {
+        let user = User::create_user(self.get_pseudo().to_string(), self.get_pwd().to_string(), self.get_socket().try_clone().expect("Can't clone"));
+        return user;
+    }
+}
+
 
 fn main() {
-    println!("---- Massimora's Chat Server Listening to {} ! ----", LOCAL);
+    println!("---- Massimora's Chat Server Listening to {} ! ----", CHAT);
     // Création d'un Listener TCP, en mode non-bloquant
-    let server = TcpListener::bind(LOCAL).expect("Unable to bind listener");
+    let server = TcpListener::bind(CHAT).expect("Unable to bind listener");
+    let connect = TcpListener::bind(CONNECT).expect("Unable to bind listener");
+    let register = TcpListener::bind(REGISTER).expect("Unable to bind listener");
     server.set_nonblocking(true).expect("Non-blocking can't be initiate");
 
     // Tableau de nos clients
     let mut clients = vec![];
+
+    let mut registered = Arc::new(Mutex::new(vec![]));
 
     // Sender / Received
     let (tx, rx) = mpsc::channel::<String>();
@@ -119,6 +133,56 @@ fn main() {
             });
         }
 
+        if let Ok((mut socket, addr)) = connect.accept() {
+            println!("Client {} try to connect", addr);
+
+            let tx = tx.clone();
+            clients.push(socket.try_clone().expect("Unable to clone client"));
+
+            let mut clone_registered = Arc::clone(&registered);
+
+            // Création d'un thread, permettant la reception des données des clients
+            thread::spawn(move || loop {
+                let mut buff = vec![0; 256];
+
+                match socket.read_exact(&mut buff) {
+                    Ok(_) => {
+                        let msg = buff.into_iter().take_while(|&x| x != 0).collect::<Vec<_>>();
+                        let msg = String::from_utf8(msg).expect("Invalid utf8 message");
+
+                        // println!("{}: {:?}", addr, msg);
+
+                        let users = json::parse(msg.as_str()).unwrap_or(object!{});
+                        // println!("{}", users["username"]);
+
+                        let username:String = users["username"].to_string();
+                        let pwd:String = users["pwd"].to_string();
+                        let token:String = users["token"].to_string();
+
+                        let user:User = User::create_user(username, pwd, socket.try_clone().expect("Can't open stream"));
+
+                        let mut data_registered = clone_registered.lock().unwrap();
+
+                        // registered.push(user);
+                        if search_registered(user.clone(), (&data_registered).to_vec()) {
+                            let mut buffer = create_token().into_bytes();
+                            buffer.resize(30, 0);
+                            user.get_socket().write(&buffer).map(|_| user.get_socket()).ok();
+                        } else {
+                            println!("not connected");
+                        }
+                    }, 
+                    Err(ref err) if err.kind() == ErrorKind::WouldBlock => (),
+                    Err(_) => {
+                        println!("{} has closed connection", addr);
+                        break;
+                    }
+                }
+
+                sleep();
+            });
+        }
+
         // Envoie du message à tous les clients
         if let Ok(msg) = rx.try_recv() {
             clients = clients.into_iter().filter_map(|mut client| {
@@ -131,19 +195,20 @@ fn main() {
 
         sleep();
     }
-    let users:Vec<User> = Vec::new();
-    let tmp = object! {"username":"toto","pwd":"$argon2i$v=19$m=4096,t=3,p=1$cnVzdF9tZXNzYWdpbmc$a+URuyk304JEitqJVXFafsjJC0bigXQvePC7IWUJ75k"};
+
+    // let users:Vec<User> = Vec::new();
+    // let tmp = object! {"username":"toto","pwd":"$argon2i$v=19$m=4096,t=3,p=1$cnVzdF9tZXNzYWdpbmc$a+URuyk304JEitqJVXFafsjJC0bigXQvePC7IWUJ75k"};
 
 
-    // println!("")
+    // // println!("")
 
-    let hash = encode_pwd(String::from("test"));
-    verify_pwd(String::from("test"), &hash);
-    verify_pwd(String::from("ok"), &hash);
+    // let hash = encode_pwd(String::from("test"));
+    // verify_pwd(String::from("test"), &hash);
+    // verify_pwd(String::from("ok"), &hash);
 
-    println!("Rust m3ss4g1ng by ESGI starting ...");
+    // println!("Rust m3ss4g1ng by ESGI starting ...");
 
-    parse_user_json(tmp.to_string());
+    // parse_user_json(tmp.to_string());
 
 }
 
@@ -172,8 +237,35 @@ fn verify_pwd(pwd:String, hash:&String) -> bool {
     return argon2::verify_encoded(&hash, pwd.as_bytes()).unwrap();
 }
 
-fn parse_user_json(mut user:String) /*-> User */{
-    let user= json::parse(&user);
-    println!("{:?}", user);
-    // return User::create_user(user[""], pwd: String, socket: TcpStream);
+// fn parse_user_json(mut user:String) /*-> User */{
+//     let user= json::parse(&user);
+//     println!("{:?}", user);
+//     // return User::create_user(user[""], pwd: String, socket: TcpStream);
+// }
+
+fn search_registered(user: User, users:Vec<User> ) -> bool {
+    for all_users in users {
+        if all_users.get_pseudo() == user.get_pseudo() && all_users.get_pwd() == user.get_pwd() {
+            return true;
+        }
+    }
+    return false;
+}
+
+fn create_token() -> String {
+    let token:String = thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(30)
+        .map(char::from)
+        .collect();
+    return token;
+}
+
+fn verify_pseudo(pseudo:String, users: Vec<User>) -> bool {
+    for all_users in users {
+        if all_users.get_pseudo().to_string() == pseudo {
+            return true;
+        }
+    }
+    return false;
 }

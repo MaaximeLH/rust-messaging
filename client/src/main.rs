@@ -5,9 +5,14 @@ use argon2::{self, Config};
 use json::{self, JsonValue, object};
 use regex;
 
-// Définition des paramètres
-const LOCAL: &str = "0.0.0.0:8888";
+/// Definition of server addresses
+const CHAT: &str = "0.0.0.0:8888";
+const CONNECT: &str = "0.0.0.0:8889";
+const REGISTER: &str = "0.0.0.0:8890";
+
+/// Definition of messages size
 const MSG_SIZE: usize = 32;
+const CONNECT_SIZE: usize = 256;
 
 struct User {
     /// The pseudo the user will use inside the chat.
@@ -78,6 +83,7 @@ impl User {
         let user_json:JsonValue = object!{
             username: self.pseudo.clone(),
             pwd: self.pwd.clone(),
+            token: self.token.clone(),
         };
 
         return json::stringify(user_json);
@@ -122,74 +128,6 @@ impl Message {
 }
 
 fn main() {
-    println!("---- Bienvenue chez Massimora's Chat ! ----");
-    print!("Saisie ton pseudo > ");
-    let username: String = read_user_entry();
-
-    // Connexion au serveur, en mode non bloquant
-    let mut client = TcpStream::connect(LOCAL).expect("Failed to connect");
-    client.set_nonblocking(true).expect("Non-blocking can't be initiate");
-
-    // Sender / Received
-    let (tx, rx) = mpsc::channel::<String>();
-
-    // Création d'un thread permettant la reception des données venant du client
-    thread::spawn(move || loop {
-        let mut buff = vec![0; MSG_SIZE];
-        // A la réception d'un message
-        match client.read_exact(&mut buff) {
-            Ok(_) => {
-                let msg_buffer = buff.into_iter().take_while(|&x| x != 0).collect::<Vec<_>>();
-                let msg_ascii = String::from_utf8(msg_buffer).expect("Invalid UTF-8 sequence");
-
-                println!("{}", msg_ascii);
-            },
-            Err(ref err) if err.kind() == ErrorKind::WouldBlock => (),
-            Err(_) => {
-                println!("Error ... Connection stopped");
-                break;
-            }
-        }
-
-        // Envoie des données au serveur
-        match rx.try_recv() {
-            Ok(msg) => {
-                if msg != "" {
-                    // Parsing du message afin d'ajouter le username dans le message
-                    let mut full_message: String = String::new();
-                    full_message.push_str(username.trim());
-                    full_message.push_str(" : ");
-                    full_message.push_str(&*msg);
-                    let mut buff = full_message.clone().into_bytes();
-                    // Réecriture du message pour qu'il corresponde à la taille du buffer
-                    buff.resize(MSG_SIZE, 0);
-                    // Envoie à TOUS les clients notre message
-                    client.write_all(&buff).expect("Unable to write into socket...");
-                }
-
-            },
-            Err(TryRecvError::Empty) => (),
-            Err(TryRecvError::Disconnected) => break
-        }
-
-        // Raffraîchissement du thread toutes les 100ms
-        thread::sleep(Duration::from_millis(100));
-    });
-
-
-    // Ecriture d'un message dans le terminal
-    loop {
-        let mut buff = String::new();
-        io::stdin().read_line(&mut buff).expect("Failed to read stdin");
-        let msg = buff.trim().to_string();
-
-        // Commande pour quitter le chat
-        if msg == "!quit" || "msg" == ":quit" || tx.send(msg).is_err() {
-            break
-        }
-    }
-
-    println!("---- A bientôt sur Massimora's Chat ! ----");
     let hash = encode_pwd(String::from("test"));
     verify_pwd(String::from("test"), &hash);
     verify_pwd(String::from("ok"), &hash);
@@ -288,6 +226,19 @@ fn display_help() {
 }
 
 fn connect() -> (bool, User) {
+    // let hash = user.get_pwd();
+    // println!("{}", verify_pwd(pwd, hash));
+    // println!("{}", user.to_json());
+    // println!("{}", user.to_string());
+
+    //JSON extract field example: (json::parse(user.to_json().as_str())).unwrap()
+    // println!("{}", (json::parse(user.to_json().as_str())).unwrap()["username"]);
+
+    // TODO: Send json over socket to verify user on server
+    // TODO: Get the return of the server to verify if user exist and the password is good
+    let mut client = TcpStream::connect(CONNECT).expect("Failed to connect");
+    client.set_nonblocking(true).expect("Non-blocking can't be initiate");
+
     println!("");
     println!("--------------------");
     print!("Enter username: ");
@@ -296,21 +247,20 @@ fn connect() -> (bool, User) {
     let pwd:String = read_user_entry();
     println!("--------------------");
     println!("");
-    
+
     let user = User::create_user(pseudo, pwd);
 
-    // let hash = user.get_pwd();
-    // println!("{}", verify_pwd(pwd, hash));
-    // println!("{}", user.to_json());
-    // println!("{}", user.to_string());
+    let mut full_message = String::new();
+    // full_message.push_str(user.to_string().as_str());
+    full_message.push_str(user.to_json().as_str());
 
-    //JSON extract field example: (json::parse(user.to_json()as_str())).unwrap
-    // println!("{}", (json::parse(user.to_json().as_str())).unwrap()["username"]);
-
-    // TODO: Send json over socket to verify user on server
-    // TODO: Get the return of the server to verify if user exist and the password is good
+    println!("{}", user.to_string().as_str());
     
-    return (true, user);
+    let mut buff = full_message.clone().into_bytes();
+    buff.resize(256, 0);
+    client.write_all(&buff).expect("Unable to write into socket...");
+
+    return (false, user);
 }
 
 fn verify_pseudo(_pseudo: String) -> bool {
@@ -405,9 +355,9 @@ fn chat(chat_type:String, user:&User) {
                         println!("{}", x);
                     }
                 },
-                 "!h" | "!help" => {
-                display_help();
-                //continue;
+                "h" | "help" => {
+                    display_help();
+                    //continue;
             }
                 "p" | "private" => println!("You will talk in private to user"),
                 _ => println!("Another stuff")
@@ -419,4 +369,75 @@ fn chat(chat_type:String, user:&User) {
             message.send();
         }
     }
+}
+
+fn tmp() {
+    println!("---- Bienvenue chez Massimora's Chat ! ----");
+    print!("Saisie ton pseudo > ");
+    let username: String = read_user_entry();
+
+    // Connexion au serveur, en mode non bloquant
+    let mut client = TcpStream::connect(CHAT).expect("Failed to connect");
+    client.set_nonblocking(true).expect("Non-blocking can't be initiate");
+
+    // Sender / Received
+    let (tx, rx) = mpsc::channel::<String>();
+
+    // Création d'un thread permettant la reception des données venant du client
+    thread::spawn(move || loop {
+        let mut buff = vec![0; MSG_SIZE];
+        // A la réception d'un message
+        match client.read_exact(&mut buff) {
+            Ok(_) => {
+                let msg_buffer = buff.into_iter().take_while(|&x| x != 0).collect::<Vec<_>>();
+                let msg_ascii = String::from_utf8(msg_buffer).expect("Invalid UTF-8 sequence");
+
+                println!("{}", msg_ascii);
+            },
+            Err(ref err) if err.kind() == ErrorKind::WouldBlock => (),
+            Err(_) => {
+                println!("Error ... Connection stopped");
+                break;
+            }
+        }
+
+        // Envoie des données au serveur
+        match rx.try_recv() {
+            Ok(msg) => {
+                if msg != "" {
+                    // Parsing du message afin d'ajouter le username dans le message
+                    let mut full_message: String = String::new();
+                    full_message.push_str(username.trim());
+                    full_message.push_str(" : ");
+                    full_message.push_str(&*msg);
+                    let mut buff = full_message.clone().into_bytes();
+                    // Réecriture du message pour qu'il corresponde à la taille du buffer
+                    buff.resize(MSG_SIZE, 0);
+                    // Envoie à TOUS les clients notre message
+                    client.write_all(&buff).expect("Unable to write into socket...");
+                }
+
+            },
+            Err(TryRecvError::Empty) => (),
+            Err(TryRecvError::Disconnected) => break
+        }
+
+        // Raffraîchissement du thread toutes les 100ms
+        thread::sleep(Duration::from_millis(100));
+    });
+
+
+    // Ecriture d'un message dans le terminal
+    loop {
+        let mut buff = String::new();
+        io::stdin().read_line(&mut buff).expect("Failed to read stdin");
+        let msg = buff.trim().to_string();
+
+        // Commande pour quitter le chat
+        if msg == "!quit" || "msg" == ":quit" || tx.send(msg).is_err() {
+            break
+        }
+    }
+
+    println!("---- A bientôt sur Massimora's Chat ! ----");
 }
