@@ -1,5 +1,5 @@
 use std::{io::{Write, Read, ErrorKind, self}, 
-{str, process::exit, time::Duration, thread, net::TcpStream}, 
+{str, process::exit, time::Duration, thread, net::{TcpStream, Shutdown}}, 
 {sync::mpsc::{self, TryRecvError}}};
 use argon2::{self, Config};
 use json::{self, JsonValue, object};
@@ -9,10 +9,6 @@ use regex;
 const CHAT: &str = "0.0.0.0:8888";
 const CONNECT: &str = "0.0.0.0:8889";
 const REGISTER: &str = "0.0.0.0:8890";
-
-/// Definition of messages size
-const MSG_SIZE: usize = 32;
-const CONNECT_SIZE: usize = 256;
 
 struct User {
     /// The pseudo the user will use inside the chat.
@@ -226,16 +222,6 @@ fn display_help() {
 }
 
 fn connect() -> (bool, User) {
-    // let hash = user.get_pwd();
-    // println!("{}", verify_pwd(pwd, hash));
-    // println!("{}", user.to_json());
-    // println!("{}", user.to_string());
-
-    //JSON extract field example: (json::parse(user.to_json().as_str())).unwrap()
-    // println!("{}", (json::parse(user.to_json().as_str())).unwrap()["username"]);
-
-    // TODO: Send json over socket to verify user on server
-    // TODO: Get the return of the server to verify if user exist and the password is good
     let mut client = TcpStream::connect(CONNECT).expect("Failed to connect");
     client.set_nonblocking(true).expect("Non-blocking can't be initiate");
 
@@ -251,22 +237,41 @@ fn connect() -> (bool, User) {
     let user = User::create_user(pseudo, pwd);
 
     let mut full_message = String::new();
-    // full_message.push_str(user.to_string().as_str());
     full_message.push_str(user.to_json().as_str());
-
-    println!("{}", user.to_string().as_str());
     
     let mut buff = full_message.clone().into_bytes();
     buff.resize(256, 0);
     client.write_all(&buff).expect("Unable to write into socket...");
 
+    thread::spawn(move || loop {
+        let mut buff = vec![0; 30];
+
+        match client.read_exact(&mut buff) {
+            Ok(_) => {
+                let msg_buffer = buff.into_iter().take_while(|&x| x != 0).collect::<Vec<_>>();
+                let msg_ascii = String::from_utf8(msg_buffer).expect("Invalid UTF-8 sequence");
+
+                //TODO: put variable in arc mutex
+                println!("{}", msg_ascii);
+                break;
+            },
+            Err(ref err) if err.kind() == ErrorKind::WouldBlock => (),
+            Err(_) => {
+                println!("Error ... Connection stopped");
+                break;
+            }
+        }
+    });
     return (false, user);
 }
 
-fn verify_pseudo(_pseudo: String) -> bool {
+fn verify_pseudo(pseudo: String) -> bool {
+    println!("{}", pseudo);
     // TODO: send the pseudo in json and get the return from server
     // Return true if pseudo is available, else false
-    return true;
+    
+    
+    return false;
 }
 
 fn register() -> (bool, User) {
@@ -275,10 +280,10 @@ fn register() -> (bool, User) {
     print!("Enter username: ");
     let pseudo:String = read_user_entry();
     
-    if !verify_pseudo(pseudo.clone()) {
-        println!("Pseudo already used");
-        exit(1);
-    }
+    // if !verify_pseudo(pseudo.clone()) {
+    //     println!("Pseudo already used");
+    //     exit(1);
+    // }
 
     print!("Enter password: ");
     let pwd:String = read_user_entry();
@@ -286,6 +291,37 @@ fn register() -> (bool, User) {
     let user = User::create_user(pseudo, pwd);
 
     // TODO: send user json to server to register the user (use user.to_json() -> json)
+
+    let mut client = TcpStream::connect(REGISTER).expect("Failed to connect");
+    client.set_nonblocking(true).expect("Non-blocking can't be initiate");
+
+    let mut full_message = String::new();
+    // full_message.push_str(&json::stringify(object!{pseudo: pseudo.clone()}));
+    full_message.push_str(user.to_json().as_str());
+    println!("{}", user.to_json().as_str());
+    
+    let mut buff = full_message.clone().into_bytes();
+    buff.resize(256, 0);
+    client.write_all(&buff).expect("Unable to write into socket...");
+    thread::spawn(move || loop {
+        let mut buff = vec![0; 30];
+
+        match client.read_exact(&mut buff) {
+            Ok(_) => {
+                let msg_buffer = buff.into_iter().take_while(|&x| x != 0).collect::<Vec<_>>();
+                let msg_ascii = String::from_utf8(msg_buffer).expect("Invalid UTF-8 sequence");
+
+                //TODO: put variable in arc mutex
+                println!("{}", msg_ascii);
+                break;
+            },
+            Err(ref err) if err.kind() == ErrorKind::WouldBlock => (),
+            Err(_) => {
+                println!("Error ... Connection stopped");
+                break;
+            }
+        }
+    });
 
     return (true, user);
 }
@@ -373,7 +409,7 @@ fn chat(chat_type:String, user:&User) {
 
 fn tmp() {
     println!("---- Bienvenue chez Massimora's Chat ! ----");
-    print!("Saisie ton pseudo > ");
+    print!("Saisi ton pseudo > ");
     let username: String = read_user_entry();
 
     // Connexion au serveur, en mode non bloquant
@@ -385,7 +421,7 @@ fn tmp() {
 
     // Création d'un thread permettant la reception des données venant du client
     thread::spawn(move || loop {
-        let mut buff = vec![0; MSG_SIZE];
+        let mut buff = vec![0; 32];
         // A la réception d'un message
         match client.read_exact(&mut buff) {
             Ok(_) => {
@@ -412,7 +448,7 @@ fn tmp() {
                     full_message.push_str(&*msg);
                     let mut buff = full_message.clone().into_bytes();
                     // Réecriture du message pour qu'il corresponde à la taille du buffer
-                    buff.resize(MSG_SIZE, 0);
+                    buff.resize(32, 0);
                     // Envoie à TOUS les clients notre message
                     client.write_all(&buff).expect("Unable to write into socket...");
                 }
