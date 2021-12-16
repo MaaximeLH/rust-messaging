@@ -7,7 +7,6 @@ use rand::{Rng, thread_rng, distributions::Alphanumeric};
 const CHAT: &str = "0.0.0.0:8888";
 const CONNECT: &str = "0.0.0.0:8889";
 const REGISTER: &str = "0.0.0.0:8890";
-const MSG_SIZE: usize = 32;
 
 fn sleep() {
     thread::sleep(::std::time::Duration::from_millis(100));
@@ -131,16 +130,35 @@ fn main() {
             clients.push(socket.try_clone().expect("Unable to clone client"));
 
             // Création d'un thread, permettant la reception des données des clients
+            let mut clone_registered = Arc::clone(&registered);
             thread::spawn(move || loop {
                 let mut buff = vec![0; 256];
 
                 match socket.read_exact(&mut buff) {
                     Ok(_) => {
                         let msg = buff.into_iter().take_while(|&x| x != 0).collect::<Vec<_>>();
-                        let msg = String::from_utf8(msg).expect("Invalid utf8 message");
+                        let mut msg = String::from_utf8(msg).expect("Invalid utf8 message");
+                        let data_registered = clone_registered.lock().unwrap();
 
-                        println!("{}: {:?}", addr, msg);
-                        // tx.send(msg).expect("Unable to send message to client");
+                        // println!("{}: {:?}", addr, msg);
+                        let content = json::parse(msg.as_str()).unwrap_or(object !{});
+                        // println!("{}", content["content"]);
+                        // println!("{}", content["from"]);
+                        let user = content["from"].clone();
+                        let user = json::parse(user.to_string().as_str()).unwrap_or(object !{});
+                        // println!("{}", user["username"]);
+                        // println!("{}", content["to"]);
+                        
+                        if is_connected(user["username"].to_string(), user["token"].to_string(), data_registered.to_vec()) {
+                            msg = String::new();
+                            msg.push_str(&user["username"].to_string());
+                            msg.push_str(" : ");
+                            msg.push_str(&content["content"].to_string());
+                        }
+
+                        println!("{}", msg);
+
+                        tx.send(msg).expect("Unable to send message to client");
                     }, 
                     Err(ref err) if err.kind() == ErrorKind::WouldBlock => (),
                     Err(_) => {
@@ -249,12 +267,10 @@ fn main() {
         if let Ok(msg) = rx.try_recv() {
             clients = clients.into_iter().filter_map(|mut client| {
                 let mut buff = msg.clone().into_bytes();
-                buff.resize(MSG_SIZE, 0);
-
+                buff.resize(256, 0);
                 client.write_all(&buff).map(|_| client).ok()
             }).collect::<Vec<_>>();
         }
-
         sleep();
     }
 }
@@ -317,4 +333,13 @@ for mut all_users in users {
             all_users.set_token(token.clone());
         }
     }
+}
+
+fn is_connected(pseudo:String, token:String, users:Vec<User>) -> bool {
+    for mut x in users {
+        if x.get_pseudo().to_string() == pseudo && x.get_token().to_string() == token {
+            return true;
+        }
+    }
+    return false;
 }

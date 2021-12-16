@@ -134,15 +134,6 @@ impl Message {
     }
 }
 
-fn main() {
-    let hash = encode_pwd(String::from("test"));
-    verify_pwd(String::from("test"), &hash);
-    verify_pwd(String::from("ok"), &hash);
-
-    println!("Welcome on rust m3ss4g1ng by ESGI");
-    general_menu();
-
-}
 
 /// Function to read a user entry.
 /// Returns a String.
@@ -345,7 +336,6 @@ fn chat_menu(user: User) {
 
         match entry {
             "!g" | "!general" => {
-                println!("{}", user.to_json());
                 chat(String::from("general"), &user);
             }
             "!q" | "!quit" => {
@@ -371,7 +361,22 @@ fn chat(chat_type:String, user:&User) {
 
         // Création d'un thread permettant la reception des données venant du client
         thread::spawn(move || loop {
-            let mut buff = vec![0; 32];
+            let mut buff = vec![0; 256];
+            // Envoie des données au serveur
+            match rx.try_recv() {
+                Ok(msg) => {
+                    if msg != "" {
+
+                        let message:Message = Message::new(data_clone.clone(), String::from("general"), msg);
+                        
+                        let mut buff = message.to_json().into_bytes();
+                        buff.resize(256, 0);
+                        client.write_all(&buff).expect("Unable to write into socket...");
+                    }
+                },
+                Err(TryRecvError::Empty) => (),
+                Err(TryRecvError::Disconnected) => break
+            }
             // A la réception d'un message
             match client.read_exact(&mut buff) {
                 Ok(_) => {
@@ -379,35 +384,13 @@ fn chat(chat_type:String, user:&User) {
                     let msg_ascii = String::from_utf8(msg_buffer).expect("Invalid UTF-8 sequence");
 
                     println!("{}", msg_ascii);
+
                 },
                 Err(ref err) if err.kind() == ErrorKind::WouldBlock => (),
                 Err(_) => {
                     println!("Error ... Connection stopped");
                     break;
                 }
-            }
-
-            // Envoie des données au serveur
-            match rx.try_recv() {
-                Ok(msg) => {
-                    if msg != "" {
-                        // Parsing du message afin d'ajouter le username dans le message
-                        // let mut full_message: String = String::new();
-                        // full_message.push_str(user.get_pseudo().trim());
-                        // full_message.push_str(" : ");
-                        // full_message.push_str(&*msg);
-
-                        let message:Message = Message::new(data_clone.clone(), String::from("general"), msg);
-                        
-                        let full_message = String::from("toto");
-                        let mut buff = message.to_json().into_bytes();
-                        // let mut buff = full_message.into_bytes();
-                        buff.resize(256, 0);
-                        client.write_all(&buff).expect("Unable to write into socket...");
-                    }
-                },
-                Err(TryRecvError::Empty) => (),
-                Err(TryRecvError::Disconnected) => break
             }
 
             // Raffraîchissement du thread toutes les 100ms
@@ -429,5 +412,24 @@ fn chat(chat_type:String, user:&User) {
                 display_help();
             }
         }
+    }
+}
+
+fn main() {
+    let hash = encode_pwd(String::from("test"));
+    verify_pwd(String::from("test"), &hash);
+    verify_pwd(String::from("ok"), &hash);
+
+    println!("Welcome on rust m3ss4g1ng by ESGI");
+    general_menu();   
+}
+
+mod unit_testing {
+    use super::*;
+    
+    #[test]
+    fn test_get_pseudo() {
+        let user = User::create_user(String::from("toto"), String::from(encode_pwd(String::from("toto"))));
+        assert_eq!(user.get_pseudo().to_string(), String::from("toto"));
     }
 }
