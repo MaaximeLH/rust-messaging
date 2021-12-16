@@ -114,7 +114,7 @@ fn main() {
     register.set_nonblocking(true).expect("Non-blocking can't be initiate");
 
     // Tableau de nos clients
-    let mut clients = vec![];
+    // let mut clients = vec![];
 
     let mut registered = Arc::new(Mutex::new(vec![]));
 
@@ -127,7 +127,7 @@ fn main() {
             println!("Client {} connected", addr);
 
             let tx = tx.clone();
-            clients.push(socket.try_clone().expect("Unable to clone client"));
+            // clients.push(socket.try_clone().expect("Unable to clone client"));
 
             // Création d'un thread, permettant la reception des données des clients
             let mut clone_registered = Arc::clone(&registered);
@@ -138,27 +138,21 @@ fn main() {
                     Ok(_) => {
                         let msg = buff.into_iter().take_while(|&x| x != 0).collect::<Vec<_>>();
                         let mut msg = String::from_utf8(msg).expect("Invalid utf8 message");
-                        let data_registered = clone_registered.lock().unwrap();
+                        let mut data_registered = clone_registered.lock().unwrap();
 
                         // println!("{}: {:?}", addr, msg);
                         let content = json::parse(msg.as_str()).unwrap_or(object !{});
-                        // println!("{}", content["content"]);
-                        // println!("{}", content["from"]);
                         let user = content["from"].clone();
                         let user = json::parse(user.to_string().as_str()).unwrap_or(object !{});
-                        // println!("{}", user["username"]);
-                        // println!("{}", content["to"]);
+                        let my_user = User::create_user(user["username"].to_string(), user["pwd"].to_string(), socket.try_clone().expect("Can't clone socket"));
+                        println!("user {} on {:?}", user["username"].to_string(), socket);
+                        update_user_socket(my_user.get_pseudo().to_string(), user["token"].to_string(), &mut data_registered, socket.try_clone().expect("Can't clone socket"));
+
+                        // println!("{}", msg);
                         
                         if is_connected(user["username"].to_string(), user["token"].to_string(), data_registered.to_vec()) {
-                            msg = String::new();
-                            msg.push_str(&user["username"].to_string());
-                            msg.push_str(" : ");
-                            msg.push_str(&content["content"].to_string());
+                            tx.send(msg.clone()).expect("Unable to send message to client");
                         }
-
-                        println!("{}", msg);
-
-                        tx.send(msg).expect("Unable to send message to client");
                     }, 
                     Err(ref err) if err.kind() == ErrorKind::WouldBlock => (),
                     Err(_) => {
@@ -176,17 +170,16 @@ fn main() {
             println!("Client {} try to connect", addr);
 
             let tx = tx.clone();
-            clients.push(socket.try_clone().expect("Unable to clone client"));
+            // clients.push(socket.try_clone().expect("Unable to clone client"));
 
             let mut clone_registered = Arc::clone(&registered);
             thread::spawn(move || loop {
                 let mut buff = vec![0; 256];
-
                 match socket.read_exact(&mut buff) {
                     Ok(_) => {
                         let msg = buff.into_iter().take_while(|&x| x != 0).collect::<Vec<_>>();
                         let msg = String::from_utf8(msg).expect("Invalid utf8 message");
-                        let data_registered = clone_registered.lock().unwrap();
+                        let mut data_registered = clone_registered.lock().unwrap();
 
                         // println!("{}: {:?}", addr, msg);
                         let users = json::parse(msg.as_str()).unwrap_or(object!{});
@@ -199,7 +192,7 @@ fn main() {
                         if search_registered(user.clone(), data_registered.to_vec()) {
                             println!("{} connected", user.get_pseudo());
                             let token = create_token();
-                            define_token(token.clone(), data_registered.to_vec(), user.clone());
+                            define_token(token.clone(), &mut data_registered, user.clone());
                             let mut buffer = token.into_bytes();
                             buffer.resize(30, 0);
                             user.get_socket().write(&buffer).map(|_| user.get_socket()).ok();
@@ -224,7 +217,7 @@ fn main() {
             println!("Client {} try to register", addr);
 
             let tx = tx.clone();
-            clients.push(socket.try_clone().expect("Unable to clone client"));
+            // clients.push(socket.try_clone().expect("Unable to clone client"));
 
             let mut clone_registered = Arc::clone(&registered);
 
@@ -265,11 +258,29 @@ fn main() {
 
         // Envoie du message à tous les clients
         if let Ok(msg) = rx.try_recv() {
-            clients = clients.into_iter().filter_map(|mut client| {
+            
+            let content = json::parse(msg.as_str()).unwrap_or(object !{});
+            let user = content["from"].clone();
+            let user = json::parse(user.to_string().as_str()).unwrap_or(object !{});
+            let mut msg = String::new();
+            msg.push_str(&user["username"].to_string());
+            msg.push_str(" : ");
+            msg.push_str(&content["content"].to_string());
+            println!("{}", msg);
+
+            for send_to in registered.lock().unwrap().clone() {
+                // println!("{}", send_to.get_pseudo());
+                // println!("{}", send_to.get_token());
+                // println!("{}", user["username"].to_string());
+                // println!("{}", user["token"].to_string());
                 let mut buff = msg.clone().into_bytes();
                 buff.resize(256, 0);
-                client.write_all(&buff).map(|_| client).ok()
-            }).collect::<Vec<_>>();
+                if send_to.get_pseudo().to_string() != user["username"].to_string() && send_to.get_token().to_string() != user["token"].to_string() {
+                    // println!("Différent pour {} socket {:?}", send_to.get_pseudo(), send_to.get_socket());
+                    send_to.get_socket().write(&buff).map(|_| send_to.get_socket()).ok();
+                }
+            }
+
         }
         sleep();
     }
@@ -327,8 +338,8 @@ fn verify_pseudo(pseudo:String, users: Vec<User>) -> bool {
     return true;
 }
 
-fn define_token(token:String, users:Vec<User>, user:User) {
-for mut all_users in users {
+fn define_token(token:String, users:&mut Vec<User>, user:User) {
+for all_users in users {
         if all_users.get_pseudo() == user.get_pseudo() && all_users.get_pwd() == user.get_pwd() {
             all_users.set_token(token.clone());
         }
@@ -343,3 +354,22 @@ fn is_connected(pseudo:String, token:String, users:Vec<User>) -> bool {
     }
     return false;
 }
+
+fn update_user_socket(pseudo:String, token:String, users:&mut Vec<User>, socket:TcpStream) {
+    for x in users {
+        // println!("{}", x.get_token());
+        // println!("{}", x.get_pseudo());
+        // println!("{} !{}!", pseudo, token);
+        if x.get_pseudo().to_string() == pseudo && x.get_token().to_string() == token {
+            x.update_socket(socket.try_clone().expect("Can't clone socket"));
+            // println!("socket update")
+        }
+    }
+}
+
+// fn print_user(users:Vec<User>) -> bool {
+//     for x in users {
+//         println!("{} <{:?}>", x.get_pseudo(), x.get_socket());
+//     }
+//     return false;
+// }
