@@ -5,3 +5,7 @@ edition = "2021"
 authors = ["Maxime LE HENAFF <maxime@lehenaff.pro", "Dora SAADAN <dorasaadan@gmail.com>", "Baptiste DEMARCHE <bdemarche@myges.fr>"]
 
 [dependencies]
+rust-argon2 = "0.8.3"
+rand_core = { version = "0.6", features = ["std"] }
+json = "0.12.4"
+regex = "1.5.4"
