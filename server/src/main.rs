@@ -19,7 +19,9 @@ struct User {
     /// The user's password to authenticate on the chat.
     pwd: String,
     /// The socket the user is connected on.
-    socket: TcpStream
+    socket: TcpStream,
+    /// Token send by the server to keep user connected
+    token: String
 }
 
 impl User {
@@ -41,13 +43,25 @@ impl User {
         return &self.socket;
     }
 
+    /// Function to get the user's token.
+    /// Returns a String
+    fn get_token(&self) -> &String {
+        return &self.token;
+    }
+
+    /// Function to set the new token of the user
+    fn set_token(&mut self, new_token: String) {
+        self.token = new_token
+    }
+
     /// Function to create a new User.
     /// Returns an instance of User Structure
     fn create_user(pseudo: String, pwd: String, socket: TcpStream) -> User {
         User {
             pseudo,
             socket,
-            pwd
+            pwd,
+            token: String::new()
         }
     }
 
@@ -62,6 +76,9 @@ impl User {
         serie.push_str(self.pseudo.as_str());
         serie.push_str("\", pwd: \"");
         serie.push_str(self.pwd.as_str());
+        serie.push_str("\"");
+        serie.push_str("\", token: \"");
+        serie.push_str(self.token.as_str());
         serie.push_str("\"");
     
         return serie;
@@ -80,7 +97,8 @@ impl User {
 
 impl Clone for User {
     fn clone(&self) -> User {
-        let user = User::create_user(self.get_pseudo().to_string(), self.get_pwd().to_string(), self.get_socket().try_clone().expect("Can't clone"));
+        let mut user = User::create_user(self.get_pseudo().to_string(), self.get_pwd().to_string(), self.get_socket().try_clone().expect("Can't clone"));
+        user.set_token(self.get_token().to_string());
         return user;
     }
 }
@@ -114,7 +132,7 @@ fn main() {
 
             // Création d'un thread, permettant la reception des données des clients
             thread::spawn(move || loop {
-                let mut buff = vec![0; MSG_SIZE];
+                let mut buff = vec![0; 256];
 
                 match socket.read_exact(&mut buff) {
                     Ok(_) => {
@@ -122,7 +140,7 @@ fn main() {
                         let msg = String::from_utf8(msg).expect("Invalid utf8 message");
 
                         println!("{}: {:?}", addr, msg);
-                        tx.send(msg).expect("Unable to send message to client");
+                        // tx.send(msg).expect("Unable to send message to client");
                     }, 
                     Err(ref err) if err.kind() == ErrorKind::WouldBlock => (),
                     Err(_) => {
@@ -150,35 +168,28 @@ fn main() {
                     Ok(_) => {
                         let msg = buff.into_iter().take_while(|&x| x != 0).collect::<Vec<_>>();
                         let msg = String::from_utf8(msg).expect("Invalid utf8 message");
-                        let mut data_registered = clone_registered.lock().unwrap();
+                        let data_registered = clone_registered.lock().unwrap();
 
                         // println!("{}: {:?}", addr, msg);
-
-                        print_users(data_registered.to_vec());
-
                         let users = json::parse(msg.as_str()).unwrap_or(object!{});
-                        // println!("{}", users["username"]);
 
                         let username:String = users["username"].to_string();
                         let pwd:String = users["pwd"].to_string();
-                        let token:String = users["token"].to_string();
 
                         let user:User = User::create_user(username, pwd, socket.try_clone().expect("Can't open stream"));
 
-
-                        // registered.push(user);
                         if search_registered(user.clone(), data_registered.to_vec()) {
-                            println!("connected");
-                            let mut buffer = create_token().into_bytes();
+                            println!("{} connected", user.get_pseudo());
+                            let token = create_token();
+                            define_token(token.clone(), data_registered.to_vec(), user.clone());
+                            let mut buffer = token.into_bytes();
                             buffer.resize(30, 0);
                             user.get_socket().write(&buffer).map(|_| user.get_socket()).ok();
                         } else {
-                            println!("not connected");
-                            let mut buffer = String::from("false").into_bytes();
+                            let mut buffer = String::from("").into_bytes();
                             buffer.resize(30, 0);
                             user.get_socket().write_all(&buffer).map(|_| user.get_socket()).ok();
                         }
-                        // break;
                     }, 
                     Err(ref err) if err.kind() == ErrorKind::WouldBlock => (),
                     Err(_) => {
@@ -186,7 +197,6 @@ fn main() {
                         break;
                     }
                 }
-
                 sleep();
             });
         }
@@ -208,25 +218,22 @@ fn main() {
                         let msg = buff.into_iter().take_while(|&x| x != 0).collect::<Vec<_>>();
                         let msg = String::from_utf8(msg).expect("Invalid utf8 message");
                         let mut data_registered = clone_registered.lock().unwrap();
-                        print_users(data_registered.to_vec());
 
-                        // println!("{}: {:?}", addr, msg);
                         let data = json::parse(msg.as_str()).unwrap_or(object!{});
-                        let user:User = User::create_user(data["username"].to_string(), data["pwd"].to_string(), socket.try_clone().expect("Can't clone"));
+                        let mut user:User = User::create_user(data["username"].to_string(), data["pwd"].to_string(), socket.try_clone().expect("Can't clone"));
 
                         if verify_pseudo(data["username"].to_string(), data_registered.to_vec()) {
-                            println!("pseudo ok");
+                            println!("{} registered", user.get_pseudo());
+                            user.set_token(create_token());
                             data_registered.push(user.clone());
-                            let mut buffer = String::from("true").into_bytes();
+                            let mut buffer = user.get_token().to_string().into_bytes();
                             buffer.resize(30, 0);
                             user.get_socket().write(&buffer).map(|_| user.get_socket()).ok();
                         } else {
-                            println!("pseudo ko");
-                            let mut buffer = String::from("true").into_bytes();
+                            let mut buffer = String::from("").into_bytes();
                             buffer.resize(30, 0);
                             user.get_socket().write(&buffer).map(|_| user.get_socket()).ok();
                         }
-                        // break;
                     }, 
                     Err(ref err) if err.kind() == ErrorKind::WouldBlock => (),
                     Err(_) => {
@@ -304,8 +311,10 @@ fn verify_pseudo(pseudo:String, users: Vec<User>) -> bool {
     return true;
 }
 
-fn print_users(users:Vec<User>) {
-    for x in users {
-        println!("user: {}", x.to_string());
+fn define_token(token:String, users:Vec<User>, user:User) {
+for mut all_users in users {
+        if all_users.get_pseudo() == user.get_pseudo() && all_users.get_pwd() == user.get_pwd() {
+            all_users.set_token(token.clone());
+        }
     }
 }
