@@ -145,7 +145,7 @@ fn main() {
                         let user = content["from"].clone();
                         let user = json::parse(user.to_string().as_str()).unwrap_or(object !{});
                         let my_user = User::create_user(user["username"].to_string(), user["pwd"].to_string(), socket.try_clone().expect("Can't clone socket"));
-                        println!("user {} on {:?}", user["username"].to_string(), socket);
+                        // println!("user {} on {:?}", user["username"].to_string(), socket);
                         update_user_socket(my_user.get_pseudo().to_string(), user["token"].to_string(), &mut data_registered, socket.try_clone().expect("Can't clone socket"));
 
                         // println!("{}", msg);
@@ -262,25 +262,25 @@ fn main() {
             let content = json::parse(msg.as_str()).unwrap_or(object !{});
             let user = content["from"].clone();
             let user = json::parse(user.to_string().as_str()).unwrap_or(object !{});
+            if content["content"].to_string() != "" {
             let mut msg = String::new();
             msg.push_str(&user["username"].to_string());
             msg.push_str(" : ");
             msg.push_str(&content["content"].to_string());
             println!("{}", msg);
-
-            for send_to in registered.lock().unwrap().clone() {
-                // println!("{}", send_to.get_pseudo());
-                // println!("{}", send_to.get_token());
-                // println!("{}", user["username"].to_string());
-                // println!("{}", user["token"].to_string());
-                let mut buff = msg.clone().into_bytes();
-                buff.resize(256, 0);
-                if send_to.get_pseudo().to_string() != user["username"].to_string() && send_to.get_token().to_string() != user["token"].to_string() {
-                    // println!("Différent pour {} socket {:?}", send_to.get_pseudo(), send_to.get_socket());
-                    send_to.get_socket().write(&buff).map(|_| send_to.get_socket()).ok();
+                for send_to in registered.lock().unwrap().clone() {
+                    // println!("{}", send_to.get_pseudo());
+                    // println!("{}", send_to.get_token());
+                    // println!("{}", user["username"].to_string());
+                    // println!("{}", user["token"].to_string());
+                    let mut buff = msg.clone().into_bytes();
+                    buff.resize(256, 0);
+                    if send_to.get_pseudo().to_string() != user["username"].to_string() && send_to.get_token().to_string() != user["token"].to_string() {
+                        // println!("Différent pour {} socket {:?}", send_to.get_pseudo(), send_to.get_socket());
+                        send_to.get_socket().write(&buff).map(|_| send_to.get_socket()).ok();
+                    }
                 }
             }
-
         }
         sleep();
     }

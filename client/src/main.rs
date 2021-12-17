@@ -358,6 +358,11 @@ fn chat(chat_type:String, user:&User) {
         // Sender / Received
         let (tx, rx) = mpsc::channel::<String>();
         let data_clone = user.clone();
+        let message:Message = Message::new(data_clone.clone(), String::from("general"), String::from(""));
+                        
+        let mut buff = message.to_json().into_bytes();
+        buff.resize(256, 0);
+        client.write_all(&buff).expect("Unable to write into socket...");
 
         // Création d'un thread permettant la reception des données venant du client
         thread::spawn(move || loop {
