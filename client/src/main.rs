@@ -407,14 +407,16 @@ fn chat(chat_type:String, user:&User) {
         loop {
             let mut buff = String::new();
             io::stdin().read_line(&mut buff).expect("Failed to read stdin");
-            let msg = buff.trim().to_string();
+            let mut msg = buff.trim().to_string();
 
             // Commande pour quitter le chat
-            if msg.clone() == "!quit" || msg.clone() == ":quit" || tx.send(msg.clone()).is_err() {
+            if msg.clone() == "!quit" || msg.clone() == "!q" || tx.send(msg.clone()).is_err() {
                 break
             }
             if msg == "!help" || msg == "!h" {
                 display_help();
+                msg = String::new();
+                continue;
             }
         }
     }
@@ -436,5 +438,20 @@ mod unit_testing {
     fn test_get_pseudo() {
         let user = User::create_user(String::from("toto"), String::from(encode_pwd(String::from("toto"))));
         assert_eq!(user.get_pseudo().to_string(), String::from("toto"));
+    }
+
+    #[test]
+    fn test_get_pwd() {
+        let pwd = encode_pwd(String::from("toto"));
+        let user = User::new(String::from("toto"), pwd.clone());
+
+        assert_eq!(user.get_pwd().to_string(), pwd);
+    }
+    
+    #[test]
+    fn test_geta_and_set_token() {
+        let mut user = User::create_user(String::from("toto"), String::from(encode_pwd(String::from("toto"))));
+        user.set_token(String::from("mytoken"));
+        assert_eq!(user.get_token().to_string(), String::from("mytoken"));
     }
 }
